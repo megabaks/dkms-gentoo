@@ -16,8 +16,10 @@ start() {
 }
 
 stop() {
+  KERNEL="$(uname -r)"
+  DKMS_FAILED="/var/tmp/dkms_failed-${KERNEL}"
 	ebegin "Stopping dkms"
-	  if [ -f '/var/tmp/dkms_failed' ];then
+	  if [ -f "${DKMS_FAILED}" ];then
 		eend 0
 	  else
 		dkms-gentoo --db

@@ -5,7 +5,7 @@
 DB="/var/db/pkg/"
 KERNEL="$(uname -r)"
 DKMS_DB="/var/lib/portage/dkms_db"
-DKMS_FAILED="/var/tmp/dkms_failed"
+DKMS_FAILED="/var/tmp/dkms_failed-${KERNEL}"
 
 case ${1} in
 
