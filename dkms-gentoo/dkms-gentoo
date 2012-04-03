@@ -5,7 +5,8 @@
 DB="/var/db/pkg/"
 KERNEL="$(uname -r)"
 DKMS_DB="/var/lib/portage/dkms_db"
-DKMS_FAILED="/var/tmp/dkms_failed-${KERNEL}"
+DKMS_TMP="/tmp/dkms_tmp"
+DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
 
 case ${1} in
 
@@ -25,16 +26,26 @@ case ${1} in
 		  echo "${MOD#*/}" && eend 0
 		fi
 	  else
-		FAILED+=" ${PKG}" 
+		FAILED+=" ${PKG}"
 		echo "${MOD#*/}" && eend 1
 	  fi
 	done < ${DKMS_DB}
 	if [ -n "${FAILED}" ];then
 ##### rebuilding broken modules for current kernel
+	  FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
+	  for ATOM in ${FAILED_ATOMS};do
+		DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
+		echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
+	  done
 	  eselect kernel set linux-${KERNEL}
-	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) \
-	  && rm -f "${DKMS_FAILED}" \
-	  || touch "${DKMS_FAILED}"
+	  emerge -1 ${FAILED_ATOMS} \
+	  && rm -f "${DKMS_FAILED}" || \
+	  while read atom mtime;do
+		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+		  echo "${atom}" >> "${DKMS_FAILED}"
+		fi
+	  done < ${DKMS_TMP}
+	  rm -f ${DKMS_TMP}
 	else
 	  rm -f "${DKMS_FAILED}"
 	fi
