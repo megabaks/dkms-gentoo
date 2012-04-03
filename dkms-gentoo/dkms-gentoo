@@ -2,8 +2,9 @@
 
 . /etc/init.d/functions.sh
 
-DKMS_DB="/var/lib/portage/dkms_db"
+DB="/var/db/pkg/"
 KERNEL="$(uname -r)"
+DKMS_DB="/var/lib/portage/dkms_db"
 
 case ${1} in
 
@@ -12,7 +13,9 @@ case ${1} in
 	while read PKG MOD PKG_FILE;do
 	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
 	  if [ -f "${MOD_FILE}" ];then
+##### version of current_kernel's module
 		MOD_VER="$( modinfo "${MOD_FILE}" | awk '/^version/ {print $2}' )"
+##### version of pkg's module
 		PKG_VER="$( modinfo "${PKG_FILE}" | awk '/^version/ {print $2}' )"
 		if [ "${PKG_VER}" != "${MOD_VER}" ];then
 		  FAILED+=" ${PKG}" 
@@ -26,31 +29,53 @@ case ${1} in
 	  fi
 	done < ${DKMS_DB}
 	if [ -n "${FAILED}" ];then
+##### rebuilding broken modules for current kernel
 	  eselect kernel set linux-${KERNEL}
-	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) && rm -f /var/tmp/dkms_failed || touch /var/tmp/dkms_failed
+	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) \
+	  && rm -f /var/tmp/dkms_failed \
+	  || touch /var/tmp/dkms_failed
 	fi
   else
 	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo --db" && return 1
   fi
- }
-check;;
+  }
+  check;;
 
 --db ) db_rebuild(){
-  DB="/var/db/pkg/"
-  TARGETS="$(grep "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
 
+  db_create(){
+##### list of all installed modules by packages
+  TARGETS="$(grep "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
   while read line;do
 	MODULE="$(awk '{print $2}' <<< ${line})"
 	KO="${MODULE#/*/*/*/}"
 	PKG_FULL="${line%/CONTENTS*}"
+##### get ${CATEGORY}/${PN}
 	export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
 	export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
+##### creating database
 	DATA+="${CATEGORY//'"'/}/${PN//'"'/} ${KO} ${MODULE}\n"
   done <<< "${TARGETS}"
-
-  echo -e "${DATA%\\n}" | column -t > ${DKMS_DB}
+	echo -e "${DATA%\\n}" | column -t > ${DKMS_DB}
+  eend 0
   }
-db_rebuild;;
+
+  if [ -f "${DKMS_DB}" ];then
+##### rebuild db if dkms's database older then pkg's database
+	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
+	DB_TIMESTAMP="$(stat -c %Y ${DB}*/ ${DB}*/*/ | sort | tail -n1)"
+	if (( "${DB_TIMESTAMP}" > "${DKMS_TIMESTAMP}" ));then
+	  db_create
+	  eend $?
+	else
+	  eend 0
+	fi
+  else
+	db_create
+	eend $?
+  fi
+  }
+  db_rebuild;;
 
 --list )
   if [ -f "${DKMS_DB}" ];then
