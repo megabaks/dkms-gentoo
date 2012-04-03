@@ -1,0 +1,28 @@
+#!/sbin/runscript
+# Copyright 1999-2012 Gentoo Foundation
+# Distributed under the terms of the GNU General Public License v2
+# $Header: $
+
+depend() {
+	need localmount net
+	before xdm
+	keyword -timeout
+}
+
+start() {
+	ebegin "Starting dkms"
+	  dkms-gentoo check
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping dkms"
+	  if [ -f '/var/tmp/dkms_failed' ];then
+		eend 0
+	  else
+		dkms-gentoo db
+	  fi
+	eend $?
+}
+
+

@@ -1,0 +1,43 @@
+#!/bin/bash
+
+. /etc/init.d/functions.sh
+case ${1} in
+
+check ) check(){
+  if [ -f "/var/lib/portage/dkms_db" ];then
+	while read PKG MOD;do
+	  if [ -f "/lib/modules/`uname -r`/${MOD}" ];then
+		echo "${MOD#*/}" && eend 0
+	  else
+		FAILED+=" ${PKG}" 
+		echo -e "${MOD#*/}" && eend 1
+	  fi
+	done < /var/lib/portage/dkms_db
+	if [ -n "${FAILED}" ];then
+	  eselect kernel set linux-`uname -r`
+	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) && rm -f /var/tmp/dkms_failed || touch /var/tmp/dkms_failed
+	fi
+  else
+	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo db" && return 1
+  fi
+  return 0
+ }
+check;;
+
+db ) db_rebuild(){
+  DB="/var/db/pkg/"
+  TARGETS="$(grep "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
+
+  while read line;do
+	MODULE="$(awk '{print $2}' <<< ${line})"
+	KO="${MODULE#/*/*/*/}"
+	PKG_FULL="$( cut -d\: -f1 <<< ${line} )"
+	PACKAGE="$(sed -e "s|${DB}||" -e 's|/CONTENTS||' <<< "${PKG_FULL}")"
+	ALL_MODULES+=">=${PACKAGE} ${KO}\n"
+  done <<< "${TARGETS}"
+
+  echo -e "${ALL_MODULES%\\n}" | column -t > /var/lib/portage/dkms_db
+  }
+db_rebuild;;
+
+esac
