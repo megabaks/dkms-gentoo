@@ -5,6 +5,7 @@
 DB="/var/db/pkg/"
 KERNEL="$(uname -r)"
 DKMS_DB="/var/lib/portage/dkms_db"
+DKMS_FAILED="/var/tmp/dkms_failed"
 
 case ${1} in
 
@@ -32,8 +33,10 @@ case ${1} in
 ##### rebuilding broken modules for current kernel
 	  eselect kernel set linux-${KERNEL}
 	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) \
-	  && rm -f /var/tmp/dkms_failed \
-	  || touch /var/tmp/dkms_failed
+	  && rm -f "${DKMS_FAILED}" \
+	  || touch "${DKMS_FAILED}"
+	else
+	  rm -f "${DKMS_FAILED}"
 	fi
   else
 	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo --db" && return 1
