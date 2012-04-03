@@ -4,14 +4,14 @@
 # $Header: $
 
 depend() {
-	need localmount net
-	before xdm
+	need localmount
+	before net
 	keyword -timeout
 }
 
 start() {
 	ebegin "Starting dkms"
-	  dkms-gentoo check
+	  dkms-gentoo --check
 	eend $?
 }
 
@@ -20,7 +20,7 @@ stop() {
 	  if [ -f '/var/tmp/dkms_failed' ];then
 		eend 0
 	  else
-		dkms-gentoo db
+		dkms-gentoo --db
 	  fi
 	eend $?
 }

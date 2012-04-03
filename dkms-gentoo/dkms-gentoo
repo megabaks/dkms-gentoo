@@ -1,43 +1,69 @@
 #!/bin/bash
 
 . /etc/init.d/functions.sh
+
+DKMS_DB="/var/lib/portage/dkms_db"
+KERNEL="$(uname -r)"
+
 case ${1} in
 
-check ) check(){
-  if [ -f "/var/lib/portage/dkms_db" ];then
-	while read PKG MOD;do
-	  if [ -f "/lib/modules/`uname -r`/${MOD}" ];then
-		echo "${MOD#*/}" && eend 0
+--check ) check(){
+  if [ -f "${DKMS_DB}" ];then
+	while read PKG MOD PKG_FILE;do
+	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
+	  if [ -f "${MOD_FILE}" ];then
+		MOD_VER="$( modinfo "${MOD_FILE}" | awk '/^version/ {print $2}' )"
+		PKG_VER="$( modinfo "${PKG_FILE}" | awk '/^version/ {print $2}' )"
+		if [ "${PKG_VER}" != "${MOD_VER}" ];then
+		  FAILED+=" ${PKG}" 
+		  echo "${MOD#*/}" && eend 1
+		else
+		  echo "${MOD#*/}" && eend 0
+		fi
 	  else
 		FAILED+=" ${PKG}" 
-		echo -e "${MOD#*/}" && eend 1
+		echo "${MOD#*/}" && eend 1
 	  fi
-	done < /var/lib/portage/dkms_db
+	done < ${DKMS_DB}
 	if [ -n "${FAILED}" ];then
-	  eselect kernel set linux-`uname -r`
+	  eselect kernel set linux-${KERNEL}
 	  emerge -1 $(echo -e "${FAILED// /\n}" | sort -u) && rm -f /var/tmp/dkms_failed || touch /var/tmp/dkms_failed
 	fi
   else
-	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo db" && return 1
+	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo --db" && return 1
   fi
-  return 0
  }
 check;;
 
-db ) db_rebuild(){
+--db ) db_rebuild(){
   DB="/var/db/pkg/"
   TARGETS="$(grep "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
 
   while read line;do
 	MODULE="$(awk '{print $2}' <<< ${line})"
 	KO="${MODULE#/*/*/*/}"
-	PKG_FULL="$( cut -d\: -f1 <<< ${line} )"
-	PACKAGE="$(sed -e "s|${DB}||" -e 's|/CONTENTS||' <<< "${PKG_FULL}")"
-	ALL_MODULES+=">=${PACKAGE} ${KO}\n"
+	PKG_FULL="${line%/CONTENTS*}"
+	export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
+	export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
+	DATA+="${CATEGORY//'"'/}/${PN//'"'/} ${KO} ${MODULE}\n"
   done <<< "${TARGETS}"
 
-  echo -e "${ALL_MODULES%\\n}" | column -t > /var/lib/portage/dkms_db
+  echo -e "${DATA%\\n}" | column -t > ${DKMS_DB}
   }
 db_rebuild;;
+
+--list )
+  if [ -f "${DKMS_DB}" ];then
+	awk '{print $1,$2}' ${DKMS_DB} | column -t
+  else
+	echo "database not found!"
+  fi;;
+
+* ) echo \
+"Usage: dkms-gentoo [option]
+available options:
+--db     rebuild database.
+--list   display database.
+--check  check modules.";;
 
 esac
