@@ -79,9 +79,11 @@ case ${1} in
 	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
 	DB_TIMESTAMP="$(stat -c %Y ${DB}*/ ${DB}*/*/ | sort | tail -n1)"
 	if (( "${DB_TIMESTAMP}" > "${DKMS_TIMESTAMP}" ));then
+	  echo "Database: updating"
 	  db_create
 	  eend $?
 	else
+	  echo "Database: already up-to-date."
 	  eend 0
 	fi
   else
