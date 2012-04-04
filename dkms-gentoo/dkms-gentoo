@@ -87,6 +87,7 @@ case ${1} in
 	  eend 0
 	fi
   else
+	echo "Database: creating"
 	db_create
 	eend $?
   fi
@@ -97,7 +98,7 @@ case ${1} in
   if [ -f "${DKMS_DB}" ];then
 	awk '{print $1,$2}' ${DKMS_DB} | column -t
   else
-	echo "database not found!"
+	echo -e "database not found!\nYou need run:\ndkms-gentoo --db"
   fi;;
 
 * ) echo \
