@@ -42,7 +42,7 @@ check(){
 		echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
 	  done
 	  eselect kernel set linux-${KERNEL}
-	  emerge -p1 ${FAILED_ATOMS} \
+	  emerge -1 ${FAILED_ATOMS} \
 	  && rm -f "${DKMS_FAILED}" || \
 	  while read atom mtime;do
 		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
