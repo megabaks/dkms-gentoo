@@ -3,14 +3,18 @@
 . /etc/init.d/functions.sh
 
 DB="/var/db/pkg/"
-KERNEL="$(uname -r)"
 DKMS_DB="/var/lib/portage/dkms_db"
 DKMS_TMP="/tmp/dkms_tmp"
-DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
+manual_ver="${2}"
 
-case ${1} in
+check(){
+  if [ -z "${KERNEL}" ];then
+	KERNEL="$(uname -r)"
+  fi
+  DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
 
---check ) check(){
+  echo -e "\nTarget: \033[01;32m${KERNEL}\033[00m\n"
+
   if [ -f "${DKMS_DB}" ];then
 	while read PKG MOD PKG_FILE;do
 	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
@@ -38,7 +42,7 @@ case ${1} in
 		echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
 	  done
 	  eselect kernel set linux-${KERNEL}
-	  emerge -1 ${FAILED_ATOMS} \
+	  emerge -p1 ${FAILED_ATOMS} \
 	  && rm -f "${DKMS_FAILED}" || \
 	  while read atom mtime;do
 		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
@@ -52,8 +56,11 @@ case ${1} in
   else
 	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo --db" && return 1
   fi
-  }
-  check;;
+}
+
+case ${1} in
+
+--check ) check;;
 
 --db ) db_rebuild(){
 
@@ -101,11 +108,28 @@ case ${1} in
 	echo -e "database not found!\nYou need run:\ndkms-gentoo --db"
   fi;;
 
+--check-link ) build_symlink() {
+  symlink="$(readlink /usr/src/linux)"
+  KERNEL="${symlink##linux-}"
+  check
+  }
+  build_symlink;;
+
+--check-manual ) manual() {
+  KERNEL="${manual_ver##*linux-}"
+  KERNEL="${KERNEL%/}"
+  check
+  }
+  manual;;
+
 * ) echo \
-"Usage: dkms-gentoo [option]
+"Usage: dkms-gentoo [OPTION]...[manual_only_VERSION]
 available options:
---db     rebuild database.
---list   display database.
---check  check modules.";;
+
+--db:           rebuild database.
+--list:         display database.
+--check:        check modules for loaded kernel.
+--check-link:   check modules for symlinked kernel.
+--check-manual: check modules for manualy selected kernel: version (i.e. 3.5.3-pf) or path to root of sources(i.e /usr/src/linux-3.5.6-pf/)";;
 
 esac
