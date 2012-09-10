@@ -7,16 +7,27 @@ DB="/var/db/pkg/"
 DKMS_TMP="/tmp/dkms_tmp"
 manual_ver="${2}"
 
+##### check it!
 check(){
   if [ -z "${KERNEL}" ];then
 	KERNEL="$(uname -r)"
   fi
   DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
 
-  echo -e "\nTarget: \033[01;32m${KERNEL}\033[00m\n"
-
   if [ -f "${DKMS_DB}" ];then
+  echo -e "\nTarget: \033[01;32m${KERNEL}\033[00m\n"
 	while read PKG MOD PKG_FILE;do
+
+	  if ! [ -f "${PKG_FILE}" ];then
+		echo -e "\n\033[01;31mDatabase incorrect!\033[00m\n"
+		VER="${PKG_FILE##*modules/}"
+		KERNEL="${VER%%/*}"
+		FAILED+=" ${PKG}"
+		BREAK="1"
+		echo -e "New target: \033[01;32m${KERNEL}\033[00m\n"
+		break;
+	  fi
+
 	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
 	  if [ -f "${MOD_FILE}" ];then
 ##### version of current_kernel's module
@@ -34,55 +45,34 @@ check(){
 		echo "${MOD#*/}" && eend 1
 	  fi
 	done < ${DKMS_DB}
-	if [ -n "${FAILED}" ];then
-##### rebuilding broken modules for current kernel
-	  FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
-	  for ATOM in ${FAILED_ATOMS};do
-		DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
-		echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
-	  done
-	  eselect kernel set linux-${KERNEL}
-	  emerge -1 ${FAILED_ATOMS} \
-	  && rm -f "${DKMS_FAILED}" || \
-	  while read atom mtime;do
-		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
-		  echo "${atom}" >> "${DKMS_FAILED}"
-		fi
-	  done < ${DKMS_TMP}
-	  rm -f ${DKMS_TMP}
-	else
-	  rm -f "${DKMS_FAILED}"
-	fi
+	rebuild_failed;
   else
-	echo -e "dkms_db not found!\nyou need run:\ndkms-gentoo --db" && return 1
+	db_rebuild;
+	check;
   fi
 }
 
-case ${1} in
-
---check ) check;;
-
---db ) db_rebuild(){
-
+##### database
+db_rebuild(){
   db_create(){
-##### list of all installed modules by packages
+#list of all installed modules by packages
   TARGETS="$(grep "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
   while read line;do
 	MODULE="$(awk '{print $2}' <<< ${line})"
 	KO="${MODULE#/*/*/*/}"
 	PKG_FULL="${line%/CONTENTS*}"
-##### get ${CATEGORY}/${PN}
+#get ${CATEGORY}/${PN}
 	export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
 	export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
-##### creating database
+#creating database
 	DATA+="${CATEGORY//'"'/}/${PN//'"'/} ${KO} ${MODULE}\n"
   done <<< "${TARGETS}"
-	echo -e "${DATA%\\n}" | column -t > ${DKMS_DB}
+  echo -e "${DATA%\\n}" | column -t > ${DKMS_DB}
   eend 0
   }
 
   if [ -f "${DKMS_DB}" ];then
-##### rebuild db if dkms's database older then pkg's database
+# rebuild db if dkms's database older then pkg's database
 	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
 	DB_TIMESTAMP="$(stat -c %Y ${DB}*/ ${DB}*/*/ | sort | tail -n1)"
 	if (( "${DB_TIMESTAMP}" > "${DKMS_TIMESTAMP}" ));then
@@ -98,8 +88,37 @@ case ${1} in
 	db_create
 	eend $?
   fi
-  }
-  db_rebuild;;
+}
+
+##### rebuilding broken modules for target kernel
+rebuild_failed(){
+  if [ -n "${FAILED}" ];then
+	FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
+	for ATOM in ${FAILED_ATOMS};do
+	  DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
+	  echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
+	done
+	  eselect kernel set linux-${KERNEL}
+	  emerge -1 ${FAILED_ATOMS} \
+	  && rm -f "${DKMS_FAILED}" || \
+	  while read atom mtime;do
+		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+		  echo "${atom}" >> "${DKMS_FAILED}"
+		fi
+	  done < ${DKMS_TMP}
+	rm -f ${DKMS_TMP}
+  else
+	rm -f "${DKMS_FAILED}"
+  fi
+
+  [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED && check;
+}
+
+case ${1} in
+
+--check ) check;;
+
+--db ) db_rebuild;;
 
 --list )
   if [ -f "${DKMS_DB}" ];then
