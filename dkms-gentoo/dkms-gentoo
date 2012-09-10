@@ -3,7 +3,7 @@
 . /etc/init.d/functions.sh
 
 DB="/var/db/pkg/"
-DKMS_DB="/var/lib/portage/dkms_db"
+[[ -z "${DKMS_DB}" ]] && DKMS_DB="/var/lib/portage/dkms_db"
 DKMS_TMP="/tmp/dkms_tmp"
 manual_ver="${2}"
 
