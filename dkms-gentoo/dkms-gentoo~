@@ -105,6 +105,7 @@ db_rebuild(){
   if [ -f "${DKMS_DB}" ];then
 # rebuild db if dkms's database older then pkg's database
 	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
+#	DB_TIMESTAMP="$(stat -c %Y ${DB}*/ ${DB}*/*/ | sort | tail -n1)"
 	DB_TIMESTAMP="$(ls -dgo --time-style=+%s --color=never ${DB}*/* | awk '{print $4,$5}')"
 	while read time dir;do
 	  if (( "${time}" > "${DKMS_TIMESTAMP}" ));then
