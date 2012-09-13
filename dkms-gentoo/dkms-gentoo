@@ -138,7 +138,7 @@ rebuild_failed(){
 	  echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
 	done
 	  ln -sfT linux-${KERNEL} /usr/src/linux
-	  emerge -1 -j1 ${FAILED_ATOMS} \
+	  emerge -1 ${FAILED_ATOMS} \
 	  && rm -f "${DKMS_FAILED}" || \
 	  while read atom mtime;do
 		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
