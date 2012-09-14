@@ -99,6 +99,7 @@ db_rebuild(){
   else
 	echo -e "${DATA%%\\n}" > ${DKMS_DB}
   fi
+  touch ${DKMS_DB}
   eend 0
   }
 
@@ -113,7 +114,7 @@ db_rebuild(){
 	done <<< "${DB_TIMESTAMP}"
 
 	if [ -n "${updated}" ];then
-	  UPDATED="${updated%,}"
+	  UPDATED="${updated}"
 	  echo -e "Database:\t${green}updating...${restore}"
 	  db_create;
 	  eend $?
