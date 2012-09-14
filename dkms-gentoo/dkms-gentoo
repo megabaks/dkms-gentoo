@@ -25,7 +25,7 @@ check(){
 	while read PKG MOD PKG_FILE;do
 
 	  if ! [ -f "${PKG_FILE}" ];then
-		echo -e "\n${red}Database incorrect!${restore} ---> file \"${green}${PKG_FILE}${restore}\" don't exists.\n"
+		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG_FILE}${restore}\" no such file.\n"
 		VER="${PKG_FILE##*modules/}"
 		KERNEL="${VER%%/*}"
 		FAILED+=" ${PKG}"
