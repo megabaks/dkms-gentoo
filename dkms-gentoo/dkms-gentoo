@@ -24,6 +24,11 @@ check(){
   echo -e "\nTarget: ${green}${KERNEL}${restore}\n"
 	while read PKG MOD PKG_FILE;do
 
+	  if [ ! -d ${DB}/${PKG}-* ];then
+		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG}${restore}\" unmerged: fixing dkms_db."
+		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
+	  fi
+	  
 	  if ! [ -f "${PKG_FILE}" ];then
 		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG_FILE}${restore}\" no such file.\n"
 		VER="${PKG_FILE##*modules/}"
@@ -33,6 +38,7 @@ check(){
 		echo -e "New target: ${green}${KERNEL}${restore}\n"
 		break;
 	  fi
+
 
 	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
 	  if [ -f "${MOD_FILE}" ];then
@@ -91,7 +97,7 @@ db_rebuild(){
   if [ -f ${DKMS_DB} ];then
 	while read PKG MOD FILE;do
 	  if `grep -q "${PKG} ${MOD} /.*" ${DKMS_DB}`;then
-		sed -e "s|${PKG} ${MOD} /.*|${PKG} ${MOD} ${FILE}|" -i ${DKMS_DB}
+		sed -e "s|${PKG} ${MOD} /.*|${PKG} ${MOD} ${FILE}|"  -e '/^$/d' -i ${DKMS_DB}
 	  else
 		[ -z ${PKG} ] || echo -e "${PKG} ${MOD} ${FILE}" >> ${DKMS_DB}
 	  fi
