@@ -25,8 +25,11 @@ check(){
 	while read PKG MOD PKG_FILE;do
 
 	  if [ ! -d ${DB}/${PKG}-* ];then
-		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG}${restore}\" unmerged: fixing dkms_db."
+		echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
 		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
+		eend $?
+		unset PKG MOD PKG_FILE
+		continue;
 	  fi
 	  
 	  if ! [ -f "${PKG_FILE}" ];then
@@ -105,12 +108,22 @@ db_rebuild(){
   else
 	echo -e "${DATA%%\\n}" > ${DKMS_DB}
   fi
+
   touch ${DKMS_DB}
   eend 0
   }
 
   if [ -f "${DKMS_DB}" ];then
-# rebuild db if dkms's database older then pkg's database
+# rebuild db if some packages unmerged
+	while read PKG MOD PKG_FILE;do
+	  if [ ! -d ${DB}/${PKG}-* ];then
+		echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
+		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
+		eend $?
+	  fi
+	done < ${DKMS_DB}
+
+# rebuild db if dkms's database older then pkg's database	
 	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
 	DB_TIMESTAMP="$(ls -dgo --time-style=+%s --color=never ${DB}*/* | awk '{print $4,$5}')"
 	while read time dir;do
