@@ -93,7 +93,7 @@ db_rebuild(){
 	  if `grep -q "${PKG} ${MOD} /.*" ${DKMS_DB}`;then
 		sed -e "s|${PKG} ${MOD} /.*|${PKG} ${MOD} ${FILE}|" -i ${DKMS_DB}
 	  else
-		[ -z ${PKG} ] || echo -e "${PKG} ${MOD} ${FILE}" >> ${DKMS_DB}
+		echo -e "${PKG} ${MOD} ${FILE}" | tr -d "\n" >> ${DKMS_DB}
 	  fi
 	done <<< "`echo -e ${DATA}`"
   else
