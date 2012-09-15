@@ -15,13 +15,11 @@ restore="\033[00m"
 
 ##### check it!
 check(){
-  if [ -z "${KERNEL}" ];then
-	KERNEL="$(uname -r)"
-  fi
-  DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
+  true_kernel "${KERNEL}"
+  DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
 
   if [ -f "${DKMS_DB}" ];then
-  echo -e "\nTarget: ${green}${KERNEL}${restore}\n"
+  echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
 	while read PKG MOD PKG_FILE;do
 
 	  if [ ! -d ${DB}/${PKG}-* ];then
@@ -36,14 +34,15 @@ check(){
 		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG_FILE}${restore}\" no such file.\n"
 		VER="${PKG_FILE##*modules/}"
 		KERNEL="${VER%%/*}"
+		true_kernel "${KERNEL}"
 		FAILED+=" ${PKG}"
 		BREAK="1"
-		echo -e "New target: ${green}${KERNEL}${restore}\n"
+		echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
 		break;
 	  fi
 
 
-	  MOD_FILE="/lib/modules/${KERNEL}/${MOD}"
+	  MOD_FILE="/lib/modules/${FULL_KERNEL}/${MOD}"
 	  if [ -f "${MOD_FILE}" ];then
 ##### version of current_kernel's module
 		MOD_VER="$( modinfo "${MOD_FILE}" | awk '/^version/ {print $2}' )"
@@ -171,30 +170,66 @@ rebuild_failed(){
 	rm -f "${DKMS_FAILED}"
   fi
 
-  [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED && check;
+  [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED FULL_KERNEL && check;
 }
 
 ##### rebuild ALL modules for target kernel
 rebuild_all_mods() {
-  if [ -z "${KERNEL}" ];then
-	KERNEL="$(uname -r)"
-  fi
-  DKMS_FAILED="/var/log/dkms_failed-${KERNEL}"
+  true_kernel "${KERNEL}"
+  DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
 
   if [ -f "${DKMS_DB}" ];then
-  echo -e "\nTarget: ${green}${KERNEL}${restore}\n"
+  echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
 	while read PKG MOD PKG_FILE;do
 	  FAILED+=" ${PKG}"
 	done < ${DKMS_DB}
 	rebuild_failed;
 	echo -e "\nswitch symlink to loaded kernel.\n"
-	ln -sfT linux-`uname -r` /usr/src/linux
+	ln -sfT linux-${KERNEL} /usr/src/linux
   else
 	db_rebuild;
 	rebuild_all_mods;
   fi
 }
 
+#########################################################
+####### kernel path and real name #######################
+kernel_version() {
+makefile="/usr/src/linux-${1}/Makefile"
+  if [ -f "${makefile}" ];then
+	VERSION="$(awk '/^VERSION =/ {print $3}' "${makefile}")"
+	PATCHLEVEL="$(awk '/^PATCHLEVEL =/ {print $3}' "${makefile}")"
+	SUBLEVEL="$(awk '/^SUBLEVEL =/ {print $3}' "${makefile}")"
+	EXTRAVERSION="$(awk '/^EXTRAVERSION =/ {print $3}' "${makefile}")"
+	FULL_KERNEL="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}"
+  fi
+}
+
+true_kernel() {
+  if [ -z "${KERNEL}" ];then
+	KERNEL="$(uname -r)"
+  fi
+
+  if [ -n "${1}" ];then
+	KERNEL="${1##*linux-}"
+	KERNEL="${KERNEL%/}"
+  fi
+
+  if [ -d "/usr/src/linux-${KERNEL}" ];then
+	kernel_version ${KERNEL}
+  else
+	for kernel in `ls -d --color=never /usr/src/linux-*`;do
+	  kernel="${kernel##*/linux-}"
+	  kernel_version ${kernel}
+	  if [ "${KERNEL}" == "${FULL_KERNEL}" ];then
+		kernel_version ${kernel}
+		KERNEL="${kernel}"
+		break
+	  fi
+	done
+  fi
+}
+#########################################################
 case ${1} in
 
 --check )
