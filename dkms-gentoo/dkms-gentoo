@@ -225,6 +225,8 @@ true_kernel() {
 		kernel_version ${kernel}
 		KERNEL="${kernel}"
 		break
+	  else
+		unset KERNEL FULL_KERNEL kernel
 	  fi
 	done
   fi
