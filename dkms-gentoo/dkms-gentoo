@@ -16,7 +16,11 @@ restore="\033[00m"
 ##### check it!
 check(){
   true_kernel "${KERNEL}"
-  DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
+  if [ -n "${FULL_KERNEL}" ];then
+	DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
+  else
+	FULL_KERNEL="${red}Source code is unavailable!${restore}: target package unmerged or corrupted"
+  fi
 
   if [ -f "${DKMS_DB}" ];then
   echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
@@ -61,9 +65,10 @@ check(){
 	done < "${DKMS_DB}"
 	rebuild_failed;
 	
-	if [ `readlink /usr/src/linux` != "linux-`uname -r`" ];then
-	  echo -e "\nSwitch symlink to: ${green}`uname -r`${restore} (loaded)\n"
-	  ln -sfT linux-`uname -r` /usr/src/linux
+	true_kernel `uname -r`
+	if [ `readlink /usr/src/linux` != "linux-${KERNEL}" ];then
+	  echo -e "\nSwitch symlink to: ${green}${FULL_KERNEL}${restore} (loaded)\n"
+	  ln -sfT linux-${KERNEL} /usr/src/linux
 	fi
   else
 	db_rebuild;
@@ -156,15 +161,19 @@ rebuild_failed(){
 	  DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
 	  echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
 	done
-	  ln -sfT linux-${KERNEL} /usr/src/linux
-	  emerge -1 ${FAILED_ATOMS} \
-	  && rm -f "${DKMS_FAILED}" || \
-	  while read atom mtime;do
-		if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
-		  echo "${atom}" >> "${DKMS_FAILED}"
-		  exit 1;
-		fi
-	  done < ${DKMS_TMP}
+	  if [ -f "/usr/src/linux-${KERNEL}/Makefile" ];then
+		ln -sfT linux-${KERNEL} /usr/src/linux
+		emerge -1 ${FAILED_ATOMS} \
+		&& rm -f "${DKMS_FAILED}" || \
+		while read atom mtime;do
+		  if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+			echo "${atom}" >> "${DKMS_FAILED}"
+			exit 1;
+		  fi
+		done < ${DKMS_TMP}
+	  else
+		echo -e "${red}Fail${restore}: ${green}${KERNEL}${restore} no source\n"
+	  fi
 	rm -f ${DKMS_TMP}
   else
 	rm -f "${DKMS_FAILED}"
