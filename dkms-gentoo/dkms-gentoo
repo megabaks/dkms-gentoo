@@ -222,8 +222,6 @@ true_kernel() {
 	  kernel="${kernel##*/linux-}"
 	  kernel_version ${kernel}
 	  if [ "${KERNEL}" == "${FULL_KERNEL}" ];then
-		kernel_version ${kernel}
-		KERNEL="${kernel}"
 		break
 	  fi
 	done
