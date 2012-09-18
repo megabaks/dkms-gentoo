@@ -14,9 +14,14 @@ green="\033[01;32m"
 red="\033[01;31m"
 restore="\033[00m"
 
-
-##### check it!
+######################################################################
+####### check it! ####################################################
 check(){
+  if [ -n "${manual_ver}" ];then
+	KERNEL="${manual_ver##*linux-}"
+	KERNEL="${KERNEL%/}"
+  fi
+
   true_kernel "${KERNEL}"
   if [ -n "${FULL_KERNEL}" ];then
 	DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
@@ -77,8 +82,8 @@ check(){
 	check;
   fi
 }
-
-##### database
+######################################################################
+####### database #####################################################
 db_rebuild(){
   db_create(){
 #list of all installed modules by packages
@@ -114,7 +119,6 @@ db_rebuild(){
   else
 	echo -e "${DATA%%\\n}" > ${DKMS_DB}
   fi
-
   touch ${DKMS_DB}
   eend 0
   }
@@ -153,9 +157,14 @@ db_rebuild(){
 	eend $?
   fi
 }
-
-##### rebuilding broken modules for target kernel
+######################################################################
+####### rebuilding broken modules for target kernel ##################
 rebuild_failed(){
+  echo $KERNEL
+  echo $FULL_KERNEL
+  true_kernel "${KERNEL}"
+  echo $KERNEL
+  echo $FULL_KERNEL
   if [ -n "${FAILED}" ];then
 	FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
 	echo -e "Target packages: ${green}${FAILED_ATOMS}${restore}\n"
@@ -183,9 +192,14 @@ rebuild_failed(){
 
   [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED FULL_KERNEL && check;
 }
-
-##### rebuild ALL modules for target kernel
+######################################################################
+####### rebuild ALL modules for target kernel ########################
 rebuild_all_mods() {
+  if [ -n "${manual_ver}" ];then
+	KERNEL="${manual_ver##*linux-}"
+	KERNEL="${KERNEL%/}"
+  fi
+
   true_kernel "${KERNEL}"
   DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
 
@@ -202,9 +216,8 @@ rebuild_all_mods() {
 	rebuild_all_mods;
   fi
 }
-
-#########################################################
-####### kernel path and real name #######################
+######################################################################
+####### kernel path and real name ####################################
 kernel_version() {
 makefile="/usr/src/linux-${1}/Makefile"
   if [ -f "${makefile}" ];then
@@ -233,20 +246,24 @@ true_kernel() {
 	  kernel="${kernel##*/linux-}"
 	  kernel_version ${kernel}
 	  if [ "${KERNEL}" == "${FULL_KERNEL}" ];then
+		KERNEL="${kernel}"
 		break
 	  fi
 	done
   fi
 }
-#########################################################
+######################################################################
+####### symlink ######################################################
+build_symlink() {
+  symlink="$(readlink /usr/src/linux)"
+  KERNEL="${symlink##linux-}"
+  check
+}
+######################################################################
+####### params #######################################################
 case ${1} in
 
---check )
-  if [ -n "${manual_ver}" ];then
-	KERNEL="${manual_ver##*linux-}"
-	KERNEL="${KERNEL%/}"
-  fi
-  check;;
+--check ) check;;
 
 --db ) db_rebuild;;
 
@@ -257,19 +274,9 @@ case ${1} in
 	db_rebuild;
   fi;;
 
---check-link ) build_symlink() {
-  symlink="$(readlink /usr/src/linux)"
-  KERNEL="${symlink##linux-}"
-  check
-  }
-  build_symlink;;
+--check-link ) build_symlink;;
 
---rebuild-all )
-  if [ -n "${manual_ver}" ];then
-	KERNEL="${manual_ver##*linux-}"
-	KERNEL="${KERNEL%/}"
-  fi
-  rebuild_all_mods;;
+--rebuild-all ) rebuild_all_mods;;
 
 * ) echo -e \
 "Usage: dkms-gentoo [OPTION]… [TARGET]
