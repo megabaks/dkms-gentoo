@@ -35,7 +35,7 @@ check(){
 
 	  if [ ! -d ${DB}/${PKG}-* ];then
 		echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
-		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
+		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||g" -e '/^$/d' -i ${DKMS_DB}
 		eend $?
 		unset PKG MOD PKG_FILE
 		continue;
@@ -46,10 +46,18 @@ check(){
 		VER="${PKG_FILE##*modules/}"
 		KERNEL="${VER%%/*}"
 		true_kernel "${KERNEL}"
-		FAILED+=" ${PKG}"
-		BREAK="1"
-		echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
-		break;
+		if [ -d "/usr/src/linux-${KERNEL}" ];then
+		  FAILED+=" ${PKG}"
+		  BREAK="1"
+		  echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
+		  break;
+		else
+		  true_kernel `uname -r`
+		  FAILED+=" ${PKG}"
+		  BREAK="1"
+		  echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
+		  break;
+		fi
 	  fi
 
 
@@ -99,8 +107,8 @@ db_rebuild(){
 	  KO="${MODULE#/*/*/*/}"
 	  PKG_FULL="${line%/CONTENTS:*}"
 #get ${CATEGORY}/${PN}
-	  export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
-	  export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 | awk '{print $3}')"
+	  export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
+	  export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
 #creating database
 	  echo -e "Processing:\t${green}${CATEGORY//'"'/}/${PN//'"'/}${restore}" 
 	  eend $?
@@ -171,7 +179,8 @@ rebuild_failed(){
 	  if [ -f "/usr/src/linux-${KERNEL}/Makefile" ];then
 		ln -sfT linux-${KERNEL} /usr/src/linux
 		emerge -1 ${FAILED_ATOMS} \
-		&& rm -f "${DKMS_FAILED}" || \
+		&& rm -f "${DKMS_FAILED}" &&\
+		db_rebuild || \
 		while read atom mtime;do
 		  if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
 			echo "${atom}" >> "${DKMS_FAILED}"
@@ -180,12 +189,27 @@ rebuild_failed(){
 		done < ${DKMS_TMP}
 	  else
 		echo -e "${red}Fail${restore}: ${green}${KERNEL}${restore} no source\n"
+		KERNEL="$(uname -r)"
+		true_kernel "${KERNEL}"
+		echo -e "New target: ${green}${FULL_KERNEL}${restore} (loaded)\n"
+		ln -sfT linux-${KERNEL} /usr/src/linux
+		emerge -1 ${FAILED_ATOMS} \
+		&& rm -f "${DKMS_FAILED}" || \
+		while read atom mtime;do
+		  if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+			echo "${atom}" >> "${DKMS_FAILED}"
+			exit 1;
+		  fi
+		done < ${DKMS_TMP}
+		db_rebuild;
+		check;
+		break
 	  fi
 	rm -f ${DKMS_TMP}
   else
 	rm -f "${DKMS_FAILED}"
   fi
-
+  
   [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED FULL_KERNEL && check;
 }
 ######################################################################
