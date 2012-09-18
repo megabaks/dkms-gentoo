@@ -160,11 +160,7 @@ db_rebuild(){
 ######################################################################
 ####### rebuilding broken modules for target kernel ##################
 rebuild_failed(){
-  echo $KERNEL
-  echo $FULL_KERNEL
   true_kernel "${KERNEL}"
-  echo $KERNEL
-  echo $FULL_KERNEL
   if [ -n "${FAILED}" ];then
 	FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
 	echo -e "Target packages: ${green}${FAILED_ATOMS}${restore}\n"
