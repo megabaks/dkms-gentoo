@@ -283,30 +283,30 @@ build_symlink() {
 ####### params #######################################################
 case ${1} in
 
---check ) check;;
+--check | -check | -c | c ) check;;
 
---db ) db_rebuild;;
+--db | -db | -d | d ) db_rebuild;;
 
---list )
+--list | -list | list | -l | l )
   if [ -f "${DKMS_DB}" ];then
 	 awk '{print $1,$2}' ${DKMS_DB} | column -t
   else
 	db_rebuild;
   fi;;
 
---check-link ) build_symlink;;
+--check-link | -check-link | -cl | cl ) build_symlink;;
 
---rebuild-all ) rebuild_all_mods;;
+--rebuild-all | -rebuild-all | rebuild-all | --ra | -ra | ra ) rebuild_all_mods;;
 
 * ) echo -e \
 "Usage: dkms-gentoo [OPTION]… [TARGET]
 available options:
 
---db:                   rebuild database.
---list:                 display database.
---check [TARGET]:       check modules for TARGET kernel.
---check-link:           check modules for symlinked kernel.
---rebuild-all [TARGET]: rebuild all modules for TARGET kernel.
+--db/-db/-d/d:                                     rebuild database.
+--list/-list/list/-l/l:                            display database.
+--check/-check/-c/c [TARGET]:                      check modules for TARGET kernel.
+--check-link/-check-link/-cl/cl:                   check modules for symlinked kernel.
+--rebuild-all/-rebuild-all/rebuild-all/--ra/-ra/ra [TARGET]: rebuild all modules for TARGET kernel.
 
 TARGET can be one of:
 
