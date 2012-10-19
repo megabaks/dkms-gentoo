@@ -4,8 +4,7 @@
 # $Header: $
 
 depend() {
-	need localmount
-	after net
+	need localmount net
 	keyword -timeout
 }
 
