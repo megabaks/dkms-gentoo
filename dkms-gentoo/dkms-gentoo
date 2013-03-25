@@ -17,288 +17,283 @@ restore="\033[00m"
 ######################################################################
 ####### check it! ####################################################
 check(){
-  if [ -n "${manual_ver}" ];then
-	KERNEL="${manual_ver##*linux-}"
-	KERNEL="${KERNEL%/}"
-  fi
-
-  true_kernel "${KERNEL}"
-  if [ -n "${FULL_KERNEL}" ];then
-	DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
-  else
-	FULL_KERNEL="${red}Source code is unavailable!${restore}: target package unmerged or corrupted"
-  fi
-
-  if [ -f "${DKMS_DB}" ];then
-  echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
-	while read PKG MOD PKG_FILE;do
-
-	  if [ ! -d ${DB}/${PKG}-* ];then
-		echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
-		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||g" -e '/^$/d' -i ${DKMS_DB}
-		eend $?
-		unset PKG MOD PKG_FILE
-		continue;
-	  fi
-	  
-	  if ! [ -f "${PKG_FILE}" ];then
-		echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG_FILE}${restore}\" no such file.\n"
-		VER="${PKG_FILE##*modules/}"
-		KERNEL="${VER%%/*}"
-		true_kernel "${KERNEL}"
-		if [ -d "/usr/src/linux-${KERNEL}" ];then
-		  FAILED+=" ${PKG}"
-		  BREAK="1"
-		  echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
-		  break;
-		else
-		  true_kernel `uname -r`
-		  FAILED+=" ${PKG}"
-		  BREAK="1"
-		  echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
-		  break;
-		fi
-	  fi
-
-
-	  MOD_FILE="/lib/modules/${FULL_KERNEL}/${MOD}"
-	  if [ -f "${MOD_FILE}" ];then
-##### version of current_kernel's module
-		MOD_VER="$( modinfo "${MOD_FILE}" | awk '/^version/ {print $2}' )"
-##### version of pkg's module
-		PKG_VER="$( modinfo "${PKG_FILE}" | awk '/^version/ {print $2}' )"
-		if [ "${PKG_VER}" != "${MOD_VER}" ];then
-		  FAILED+=" ${PKG}" 
-		  echo -e "${MOD##*/}:\t${MOD_VER}" && eend 1
-		else
-		  echo -e "${MOD##*/}:\t${MOD_VER}" && eend 0
-		fi
-	  else
-		FAILED+=" ${PKG}"
-		echo -e "${MOD##*/}:\t${MOD_VER}" && eend 1
-	  fi
-	done < "${DKMS_DB}"
-	rebuild_failed;
-	
-	true_kernel `uname -r`
-	if [ `readlink /usr/src/linux` != "linux-${KERNEL}" ];then
-	  echo -e "\nSwitch symlink to: ${green}${FULL_KERNEL}${restore} (loaded)\n"
-	  ln -sfT linux-${KERNEL} /usr/src/linux
+	if [ -n "${manual_ver}" ];then
+		KERNEL="${manual_ver##*linux-}"
+		KERNEL="${KERNEL%/}"
 	fi
-  else
-	db_rebuild;
-	check;
-  fi
+
+	true_kernel "${KERNEL}"
+		if [ -n "${FULL_KERNEL}" ];then
+			DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
+		else
+			FULL_KERNEL="${red}Source code is unavailable!${restore}: target package unmerged or corrupted"
+		fi
+
+	if [ -f "${DKMS_DB}" ];then
+		echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
+		while read PKG MOD PKG_FILE;do
+
+			if [ ! -d ${DB}/${PKG}-* ];then
+				echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
+				sed -e "s|${PKG} ${MOD} ${PKG_FILE}||g" -e '/^$/d' -i ${DKMS_DB}
+				eend $?
+				unset PKG MOD PKG_FILE
+				continue;
+			fi
+
+			if ! [ -f "${PKG_FILE}" ];then
+				echo -e "\n${red}Database incorrect!${restore} ---> \"${green}${PKG_FILE}${restore}\" no such file.\n"
+				VER="${PKG_FILE##*modules/}"
+				KERNEL="${VER%%/*}"
+				true_kernel "${KERNEL}"
+				if [ -d "/usr/src/linux-${KERNEL}" ];then
+					FAILED+=" ${PKG}"
+					BREAK="1"
+					echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
+					break;
+				else
+					true_kernel `uname -r`
+					FAILED+=" ${PKG}"
+					BREAK="1"
+					echo -e "New target: ${green}${FULL_KERNEL}${restore}\n"
+					break;
+				fi
+			fi
+
+
+			MOD_FILE="/lib/modules/${FULL_KERNEL}/${MOD}"
+			if [ -f "${MOD_FILE}" ];then
+				##### version of current_kernel's module
+				MOD_VER="$( modinfo "${MOD_FILE}" | awk '/^version/ {print $2}' )"
+				##### version of pkg's module
+				PKG_VER="$( modinfo "${PKG_FILE}" | awk '/^version/ {print $2}' )"
+				if [ "${PKG_VER}" != "${MOD_VER}" ];then
+					FAILED+=" ${PKG}" 
+					echo -e "${MOD##*/}:\t${MOD_VER}" && eend 1
+				else
+					echo -e "${MOD##*/}:\t${MOD_VER}" && eend 0
+				fi
+			else
+				FAILED+=" ${PKG}"
+				echo -e "${MOD##*/}:\t${MOD_VER}" && eend 1
+			fi
+		done < "${DKMS_DB}"
+		rebuild_failed;
+
+		true_kernel `uname -r`
+		if [ `readlink /usr/src/linux` != "linux-${KERNEL}" ];then
+			echo -e "\nSwitch symlink to: ${green}${FULL_KERNEL}${restore} (loaded)\n"
+			ln -sfT linux-${KERNEL} /usr/src/linux
+		fi
+	else
+		db_rebuild;
+		check;
+	fi
 }
 ######################################################################
 ####### database #####################################################
 db_rebuild(){
-  db_create(){
-#list of all installed modules by packages
-  if [ -z "${UPDATED}" ];then
-	TARGETS="$(grep -H "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
-  else
-	TARGETS+="$(grep -H "/lib/modules/.*.ko\>" `find ${UPDATED} -type f -name "CONTENTS"`)"
-  fi
+	db_create(){
+		#list of all installed modules by packages
+		if [ -z "${UPDATED}" ];then
+			TARGETS="$(grep -H "/lib/modules/.*.ko\>" ${DB}*/*/CONTENTS)"
+		else
+			TARGETS+="$(grep -H "/lib/modules/.*.ko\>" `find ${UPDATED} -type f -name "CONTENTS"`)"
+		fi
 
-  if [ -n "${TARGETS}" ];then
-	while read line;do
-	  MODULE="$(awk '{print $2}' <<< ${line})"
-	  KO="${MODULE#/*/*/*/}"
-	  PKG_FULL="${line%/CONTENTS:*}"
-#get ${CATEGORY}/${PN}
-	  export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
-	  export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
-#creating database
-	  echo -e "Processing:\t${green}${CATEGORY//'"'/}/${PN//'"'/}${restore}" 
-	  eend $?
-	  DATA+="${CATEGORY//'"'/}/${PN//'"'/} ${KO} ${MODULE}\n"
-	done <<< "${TARGETS}"
-  fi
+		if [ -n "${TARGETS}" ];then
+			while read line;do
+				MODULE="$(awk '{print $2}' <<< ${line})"
+				KO="${MODULE#/*/*/*/}"
+				PKG_FULL="${line%/CONTENTS:*}"
+				#get ${CATEGORY}/${PN}
+				export "$(bzgrep "declare -x CATEGORY=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
+				export "$(bzgrep "declare -x PN=" ${PKG_FULL}/environment.bz2 2>/dev/null | awk '{print $3}')" 2>/dev/null
+				#creating database
+				echo -e "Processing:\t${green}${CATEGORY//'"'/}/${PN//'"'/}${restore}" 
+				eend $?
+				DATA+="${CATEGORY//'"'/}/${PN//'"'/} ${KO} ${MODULE}\n"
+			done <<< "${TARGETS}"
+		fi
 
-  if [ -f ${DKMS_DB} ];then
-	while read PKG MOD FILE;do
-	  if `grep -q "${PKG} ${MOD} /.*" ${DKMS_DB}`;then
-		sed -e "s|${PKG} ${MOD} /.*|${PKG} ${MOD} ${FILE}|"  -e '/^$/d' -i ${DKMS_DB}
-	  else
-		[ -z ${PKG} ] || echo -e "${PKG} ${MOD} ${FILE}" >> ${DKMS_DB}
-	  fi
-	done <<< "`echo -e ${DATA}`"
-  else
-	echo -e "${DATA%%\\n}" > ${DKMS_DB}
-  fi
-  touch ${DKMS_DB}
-  eend 0
-  }
+		if [ -f ${DKMS_DB} ];then
+			while read PKG MOD FILE;do
+				if `grep -q "${PKG} ${MOD} /.*" ${DKMS_DB}`;then
+					sed -e "s|${PKG} ${MOD} /.*|${PKG} ${MOD} ${FILE}|"  -e '/^$/d' -i ${DKMS_DB}
+				else
+					[ -z ${PKG} ] || echo -e "${PKG} ${MOD} ${FILE}" >> ${DKMS_DB}
+				fi
+			done <<< "`echo -e ${DATA}`"
+		else
+			echo -e "${DATA%%\\n}" > ${DKMS_DB}
+		fi
+		touch ${DKMS_DB}
+		eend 0
+	}
 
-  if [ -f "${DKMS_DB}" ];then
-# rebuild db if some packages unmerged
-	while read PKG MOD PKG_FILE;do
-	  if [ ! -d ${DB}/${PKG}-* ];then
-		echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
-		sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
-		eend $?
-	  fi
-	done < ${DKMS_DB}
+	if [ -f "${DKMS_DB}" ];then
+		# rebuild db if some packages unmerged
+		while read PKG MOD PKG_FILE;do
+			if [ ! -d ${DB}/${PKG}-* ];then
+				echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
+				sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
+				eend $?
+			fi
+		done < ${DKMS_DB}
 
-# rebuild db if dkms's database older then pkg's database	
-	DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
-	DB_TIMESTAMP="$(ls -dgo --time-style=+%s --color=never ${DB}*/* | awk '{print $4,$5}')"
-	while read time dir;do
-	  if (( "${time}" > "${DKMS_TIMESTAMP}" ));then
-		updated+="${dir} "
-	  fi
-	done <<< "${DB_TIMESTAMP}"
+		# rebuild db if dkms's database older then pkg's database	
+		DKMS_TIMESTAMP="$(stat -c %Y ${DKMS_DB})"
+		DB_TIMESTAMP="$(ls -dgo --time-style=+%s --color=never ${DB}*/* | awk '{print $4,$5}')"
+		while read time dir;do
+			if (( "${time}" > "${DKMS_TIMESTAMP}" ));then
+				updated+="${dir} "
+			fi
+		done <<< "${DB_TIMESTAMP}"
 
-	if [ -n "${updated}" ];then
-	  UPDATED="${updated}"
-	  echo -e "Database:\t${green}updating...${restore}"
-	  db_create;
-	  eend $?
+		if [ -n "${updated}" ];then
+			UPDATED="${updated}"
+			echo -e "Database:\t${green}updating...${restore}"
+			db_create;
+			eend $?
+		else
+			echo -e "Database:\t${green}already up-to-date.${restore}"
+			eend 0
+		fi
 	else
-	  echo -e "Database:\t${green}already up-to-date.${restore}"
-	  eend 0
+		echo -e "Database:\t${green}creating...${restore}\n"
+		db_create;
+		eend $?
 	fi
-  else
-	echo -e "Database:\t${green}creating...${restore}\n"
-	db_create;
-	eend $?
-  fi
 }
 ######################################################################
 ####### rebuilding broken modules for target kernel ##################
 rebuild_failed(){
-  true_kernel "${KERNEL}"
-  if [ -n "${FAILED}" ];then
-	FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
-	echo -e "Target packages: ${green}${FAILED_ATOMS}${restore}\n"
-	for ATOM in ${FAILED_ATOMS};do
-	  DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
-	  echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
-	done
-	  if [ -f "/usr/src/linux-${KERNEL}/Makefile" ];then
-		ln -sfT linux-${KERNEL} /usr/src/linux
-		emerge -1 ${FAILED_ATOMS} \
-		&& rm -f "${DKMS_FAILED}" &&\
-		db_rebuild || \
-		while read atom mtime;do
-		  if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
-			echo "${atom}" >> "${DKMS_FAILED}"
-			exit 1;
-		  fi
-		done < ${DKMS_TMP}
-	  else
-		echo -e "${red}Fail${restore}: ${green}${KERNEL}${restore} no source\n"
-		KERNEL="$(uname -r)"
-		true_kernel "${KERNEL}"
-		echo -e "New target: ${green}${FULL_KERNEL}${restore} (loaded)\n"
-		ln -sfT linux-${KERNEL} /usr/src/linux
-		emerge -1 ${FAILED_ATOMS} \
-		&& rm -f "${DKMS_FAILED}" || \
-		while read atom mtime;do
-		  if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
-			echo "${atom}" >> "${DKMS_FAILED}"
-			exit 1;
-		  fi
-		done < ${DKMS_TMP}
-		db_rebuild;
-		check;
-		break
-	  fi
-	rm -f ${DKMS_TMP}
-  else
-	rm -f "${DKMS_FAILED}"
-  fi
-  
-  [ -n "${BREAK}" ] && unset BREAK KERNEL FAILED FULL_KERNEL && check;
+	true_kernel "${KERNEL}"
+	if [ -n "${FAILED}" ];then
+		FAILED_ATOMS="$(echo -e "${FAILED// /\n}" | sort -u)"
+		echo -e "Target packages: ${green}${FAILED_ATOMS}${restore}\n"
+		for ATOM in ${FAILED_ATOMS};do
+			DB_PKG="$(find ${DB} -maxdepth 2 -name "${ATOM#*/}*")"
+			echo "${ATOM} $(stat -c %Y $DB_PKG)" >> ${DKMS_TMP}
+		done
+		if [ -f "/usr/src/linux-${KERNEL}/Makefile" ];then
+			ln -sfT linux-${KERNEL} /usr/src/linux
+			emerge -1 ${FAILED_ATOMS} \
+			&& rm -f "${DKMS_FAILED}" &&\
+			db_rebuild || \
+			while read atom mtime;do
+				if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+					echo "${atom}" >> "${DKMS_FAILED}"
+					exit 1;
+				fi
+			done < ${DKMS_TMP}
+		else
+			echo -e "${red}Fail${restore}: ${green}${KERNEL}${restore} no source\n"
+			KERNEL="$(uname -r)"
+			true_kernel "${KERNEL}"
+			echo -e "New target: ${green}${FULL_KERNEL}${restore} (loaded)\n"
+			ln -sfT linux-${KERNEL} /usr/src/linux
+			emerge -1 ${FAILED_ATOMS} \
+			&& rm -f "${DKMS_FAILED}" || \
+			while read atom mtime;do
+				if (( "$(stat -c %Y ${DB_PKG})" == "${mtime}" ));then
+					echo "${atom}" >> "${DKMS_FAILED}"
+					exit 1;
+				fi
+			done < ${DKMS_TMP}
+			db_rebuild;
+			check;
+			break
+		fi
+		rm -f ${DKMS_TMP}
+	else
+		rm -f "${DKMS_FAILED}"
+	fi
+
+	[ -n "${BREAK}" ] && unset BREAK KERNEL FAILED FULL_KERNEL && check;
 }
 ######################################################################
 ####### rebuild ALL modules for target kernel ########################
 rebuild_all_mods() {
-  if [ -n "${manual_ver}" ];then
-	KERNEL="${manual_ver##*linux-}"
-	KERNEL="${KERNEL%/}"
-  fi
+	if [ -n "${manual_ver}" ];then
+		KERNEL="${manual_ver##*linux-}"
+		KERNEL="${KERNEL%/}"
+	fi
 
-  true_kernel "${KERNEL}"
-  DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
+	true_kernel "${KERNEL}"
+	DKMS_FAILED="/var/log/dkms_failed-${FULL_KERNEL}"
 
-  if [ -f "${DKMS_DB}" ];then
-  echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
-	while read PKG MOD PKG_FILE;do
-	  FAILED+=" ${PKG}"
-	done < ${DKMS_DB}
-	rebuild_failed;
-	echo -e "\nswitch symlink to loaded kernel.\n"
-	ln -sfT linux-${KERNEL} /usr/src/linux
-  else
-	db_rebuild;
-	rebuild_all_mods;
-  fi
+	if [ -f "${DKMS_DB}" ];then
+		echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
+		while read PKG MOD PKG_FILE;do
+			FAILED+=" ${PKG}"
+		done < ${DKMS_DB}
+		rebuild_failed;
+		echo -e "\nswitch symlink to loaded kernel.\n"
+		ln -sfT linux-${KERNEL} /usr/src/linux
+	else
+		db_rebuild;
+		rebuild_all_mods;
+	fi
 }
 ######################################################################
 ####### kernel path and real name ####################################
 kernel_version() {
-makefile="/usr/src/linux-${1}/Makefile"
-  if [ -f "${makefile}" ];then
-	VERSION="$(awk '/^VERSION =/ {print $3}' "${makefile}")"
-	PATCHLEVEL="$(awk '/^PATCHLEVEL =/ {print $3}' "${makefile}")"
-	SUBLEVEL="$(awk '/^SUBLEVEL =/ {print $3}' "${makefile}")"
-	EXTRAVERSION="$(awk '/^EXTRAVERSION =/ {print $3}' "${makefile}")"
-	FULL_KERNEL="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}"
-  fi
+	makefile="/usr/src/linux-${1}/Makefile"
+	if [ -f "${makefile}" ];then
+		VERSION="$(awk '/^VERSION =/ {print $3}' "${makefile}")"
+		PATCHLEVEL="$(awk '/^PATCHLEVEL =/ {print $3}' "${makefile}")"
+		SUBLEVEL="$(awk '/^SUBLEVEL =/ {print $3}' "${makefile}")"
+		EXTRAVERSION="$(awk '/^EXTRAVERSION =/ {print $3}' "${makefile}")"
+		FULL_KERNEL="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}"
+	fi
 }
 
 true_kernel() {
-  if [ -z "${KERNEL}" ];then
-	KERNEL="$(uname -r)"
-  fi
+	if [ -z "${KERNEL}" ];then
+		KERNEL="$(uname -r)"
+	fi
 
-  if [ -n "${1}" ];then
-	KERNEL="${1##*linux-}"
-	KERNEL="${KERNEL%/}"
-  fi
+	if [ -n "${1}" ];then
+		KERNEL="${1##*linux-}"
+		KERNEL="${KERNEL%/}"
+	fi
 
-  if [ -d "/usr/src/linux-${KERNEL}" ];then
-	kernel_version ${KERNEL}
-  else
-	for kernel in `ls -d --color=never /usr/src/linux-*`;do
-	  kernel="${kernel##*/linux-}"
-	  kernel_version ${kernel}
-	  if [ "${KERNEL}" == "${FULL_KERNEL}" ];then
-		KERNEL="${kernel}"
-		break
-	  fi
-	done
-  fi
+	if [ -d "/usr/src/linux-${KERNEL}" ];then
+		kernel_version ${KERNEL}
+	else
+		for kernel in `ls -d --color=never /usr/src/linux-*`;do
+			kernel="${kernel##*/linux-}"
+			kernel_version ${kernel}
+			if [ "${KERNEL}" == "${FULL_KERNEL}" ];then
+				KERNEL="${kernel}"
+				break
+			fi
+		done
+	fi
 }
 ######################################################################
 ####### symlink ######################################################
 build_symlink() {
-  symlink="$(readlink /usr/src/linux)"
-  KERNEL="${symlink##linux-}"
-  check
+	symlink="$(readlink /usr/src/linux)"
+	KERNEL="${symlink##linux-}"
+	check
 }
 ######################################################################
 ####### params #######################################################
 case ${1} in
 
---check | -check | -c | c ) check;;
-
---db | -db | -d | d ) db_rebuild;;
-
---list | -list | list | -l | l )
-  if [ -f "${DKMS_DB}" ];then
-	 awk '{print $1,$2}' ${DKMS_DB} | column -t
-  else
-	db_rebuild;
-  fi;;
-
---check-link | -check-link | -cl | cl ) build_symlink;;
-
---rebuild-all | -rebuild-all | rebuild-all | --ra | -ra | ra ) rebuild_all_mods;;
-
-* ) echo -e \
+	--check | -check | -c | c ) check;;
+	--db | -db | -d | d ) db_rebuild;;
+	--list | -list | list | -l | l )
+		if [ -f "${DKMS_DB}" ];then
+			awk '{print $1,$2}' ${DKMS_DB} | column -t
+		else
+			db_rebuild;
+		fi;;
+	--check-link | -check-link | -cl | cl ) build_symlink;;
+	--rebuild-all | -rebuild-all | rebuild-all | --ra | -ra | ra ) rebuild_all_mods;;
+	* ) echo -e \
 "Usage: dkms-gentoo [OPTION]… [TARGET]
 available options:
 
