@@ -31,7 +31,7 @@ check(){
 	if [[ -f "${DKMS_DB}" ]];then
 		echo -e "\nTarget: ${green}${FULL_KERNEL}${restore}\n"
 		while read PKG MOD PKG_FILE;do
-			if [[ ! -d ${DB}/${PKG}-* ]];then
+			if ! [ -d ${DB}/${PKG}-* ];then
 				echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
 				sed -e "s|${PKG} ${MOD} ${PKG_FILE}||g" -e '/^$/d' -i ${DKMS_DB}
 				eend $? 2>/dev/null
@@ -122,10 +122,10 @@ db_rebuild(){
 		touch ${DKMS_DB}
 		eend 0
 	}
-	if [[ -f "${DKMS_DB}" ]];then
+	if [ -f "${DKMS_DB}" ];then
 		# rebuild db if some packages unmerged
 		while read PKG MOD PKG_FILE;do
-			if [[ ! -d ${DB}/${PKG}-* ]];then
+			if [ ! -d ${DB}/${PKG}-* ];then
 				echo -e "${MOD##*/}\t\"${green}${PKG}${restore}\" unmerged: fixing dkms_db..."
 				sed -e "s|${PKG} ${MOD} ${PKG_FILE}||" -e '/^$/d' -i ${DKMS_DB}
 				eend $? 2>/dev/null
@@ -139,7 +139,7 @@ db_rebuild(){
 				updated+="${dir} "
 			fi
 		done <<< "${DB_TIMESTAMP}"
-		if [[ -n "${updated}" ]];then
+		if [[ -n "${updated}" || ! -s "${DKMS_DB}" ]];then
 			UPDATED="${updated}"
 			echo -e "Database:\t${green}updating...${restore}"
 			db_create;
