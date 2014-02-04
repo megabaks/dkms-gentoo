@@ -2,8 +2,8 @@
 # Copyright megabaks
 # Distributed under the terms of the GNU General Public License v3 or later
 ############################################################################
-################ check_openrc ##############################################
-[[ -f "/etc/init.d/functions.sh" ]] && . /etc/init.d/functions.sh
+################ portage functions #########################################
+source /usr/lib*/portage/bin/isolated-functions.sh
 ############################################################################
 ################ init ######################################################
 DB="/var/db/pkg/"
